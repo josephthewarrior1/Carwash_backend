@@ -1,41 +1,33 @@
-import 'dotenv/config';
-import express, { Express } from 'express';
-import bodyParser from 'body-parser';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import prisma from './services/prisma';
-import errorMiddleware from './middlewares/errorMiddleware';
-import userRoutes from './routes/v1/userRoutes'; 
-import uploadRoutes from './routes/v1/uploadRoutes';
-import staffRoutes from "./routes/v1/staffRoutes";
-import patientRoutes from "./routes/v1/patientRoutes";
-import medicalHistoryRoutes from "./routes/v1/medicalHistoryRoutes";
+import dotenv from 'dotenv';
+import authRoutes from './routes/auth';
+import servicesRoutes from './routes/services';
+import ordersRoutes from './routes/orders';
 
-const app: Express = express();
+dotenv.config();
 
-const PORT = process.env.SERVER_PORT || 9876;
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-app.get('/', (req, res) => res.send('Hello'));
-
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(bodyParser.json({ limit: '50mb' }));
 app.use(cors());
-app.use('/public', express.static('public'));
-app.use('/uploads', express.static('uploads/'));
+app.use(express.json());
 
-// Hanya menyisakan rute-rute yang diperlukan
-app.use('/v1/user', userRoutes);
-app.use('/v1/upload', uploadRoutes);
-app.use('/v1/staff', staffRoutes);
-app.use('/v1/patient', patientRoutes);
-app.use('/v1/medical-history', medicalHistoryRoutes);
-app.use(errorMiddleware);
+// Main Routes
+app.use('/auth', authRoutes);
+app.use('/services', servicesRoutes);
+app.use('/orders', ordersRoutes);
 
-async function main() {
-	await prisma.$connect();
-	console.log(`Successfully connected to database`);
-	app.listen(PORT, () => {
-		console.log(`Server ready at port ${PORT}`);
-	});
-}
+app.get('/health', (req: Request, res: Response) => {
+    res.status(200).json({ success: true, message: 'Server is running', data: null });
+});
 
-main();
+// Global Error Handler
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+    console.error(err.stack);
+    res.status(500).json({ success: false, message: 'Something went wrong!', data: null });
+});
+
+app.listen(PORT, () => {
+    console.log(`Server listening on port ${PORT}`);
+});

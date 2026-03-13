@@ -1,12 +1,42 @@
-node_modules
-# Keep environment variables out of version control
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Environment variables
 .env
-/prisma/generated/*
-package-lock.json
-.vscode
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
 
-/uploads
+# SQLite Database
+*.sqlite
+*.sqlite3
+*.db
+*.db3
+data.sqlite
+data.sqlite-journal
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS Generated Files
+.DS_Store
+Thumbs.db
+
+# IDE / Editor
+.vscode/
 .idea/
-
-# Firebase / GCP service account
-*-firebase-adminsdk-*.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

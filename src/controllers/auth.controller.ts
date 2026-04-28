@@ -70,7 +70,16 @@ export const login = (req: Request, res: Response): any => {
             message: 'Login successful',
             data: {
                 token,
-                user: { id: user.id, name: user.name, email: user.email, role: user.role }
+                user: {
+                    id: user.id,
+                    name: user.name,
+                    email: user.email,
+                    role: user.role,
+                    phone: user.phone || null,
+                    address: user.address || null,
+                    avatar_url: user.avatar_url || null,
+                    created_at: user.created_at,
+                }
             }
         });
 

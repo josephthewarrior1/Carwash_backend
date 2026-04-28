@@ -18,6 +18,7 @@ export function createSchema() {
       name TEXT NOT NULL,
       description TEXT,
       price REAL NOT NULL,
+      duration INTEGER NOT NULL DEFAULT 60,
       vehicle_type TEXT CHECK(vehicle_type IN ('sedan', 'suv', 'truck', 'motorcycle')) NOT NULL
     );
 
@@ -52,6 +53,22 @@ export function createSchema() {
     );
   `);
   console.log("Database schema created successfully.");
+
+  const serviceColumns = db.pragma('table_info(services)') as { name: string }[];
+  if (!serviceColumns.some(col => col.name === 'duration')) {
+    db.exec(`ALTER TABLE services ADD COLUMN duration INTEGER NOT NULL DEFAULT 60`);
+    console.log("Migrated: added duration column to services.");
+  }
+  if (!serviceColumns.some(col => col.name === 'image_url')) {
+    db.exec(`ALTER TABLE services ADD COLUMN image_url TEXT`);
+    console.log("Migrated: added image_url column to services.");
+  }
+
+  const userColumns = db.pragma('table_info(users)') as { name: string }[];
+  if (!userColumns.some(col => col.name === 'avatar_url')) {
+    db.exec(`ALTER TABLE users ADD COLUMN avatar_url TEXT`);
+    console.log("Migrated: added avatar_url column to users.");
+  }
 }
 
 if (require.main === module) {

@@ -24,21 +24,21 @@ export function seed() {
 
   if (existingServices.count === 0) {
     const insertService = db.prepare(`
-      INSERT INTO services (id, name, description, price, vehicle_type)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO services (id, name, description, price, duration, vehicle_type)
+      VALUES (?, ?, ?, ?, ?, ?)
     `);
 
     const initialServices = [
-      { name: 'Cuci Eksterior Sedan', description: 'Cuci kilat bodi luar sedan', price: 50000, vehicle_type: 'sedan' },
-      { name: 'Cuci Lengkap Sedan', description: 'Cuci luar dalam + vakum', price: 80000, vehicle_type: 'sedan' },
-      { name: 'Cuci Eksterior SUV', description: 'Cuci kilat bodi luar SUV', price: 60000, vehicle_type: 'suv' },
-      { name: 'Cuci Lengkap SUV', description: 'Cuci luar dalam + vakum SUV', price: 100000, vehicle_type: 'suv' },
-      { name: 'Cuci Motor Matic/Bebek', description: 'Cuci motor standar', price: 20000, vehicle_type: 'motorcycle' },
-      { name: 'Cuci Motor Sport', description: 'Cuci motor sport / moge', price: 30000, vehicle_type: 'motorcycle' }
+      { name: 'Cuci Eksterior Sedan', description: 'Cuci kilat bodi luar sedan', price: 50000, duration: 30, vehicle_type: 'sedan' },
+      { name: 'Cuci Lengkap Sedan', description: 'Cuci luar dalam + vakum', price: 80000, duration: 60, vehicle_type: 'sedan' },
+      { name: 'Cuci Eksterior SUV', description: 'Cuci kilat bodi luar SUV', price: 60000, duration: 45, vehicle_type: 'suv' },
+      { name: 'Cuci Lengkap SUV', description: 'Cuci luar dalam + vakum SUV', price: 100000, duration: 75, vehicle_type: 'suv' },
+      { name: 'Cuci Motor Matic/Bebek', description: 'Cuci motor standar', price: 20000, duration: 20, vehicle_type: 'motorcycle' },
+      { name: 'Cuci Motor Sport', description: 'Cuci motor sport / moge', price: 30000, duration: 30, vehicle_type: 'motorcycle' }
     ];
 
     for (const s of initialServices) {
-      insertService.run(crypto.randomUUID(), s.name, s.description, s.price, s.vehicle_type);
+      insertService.run(crypto.randomUUID(), s.name, s.description, s.price, s.duration, s.vehicle_type);
     }
     console.log("Default services seeded.");
   } else {

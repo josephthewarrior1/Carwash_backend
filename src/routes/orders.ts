@@ -10,6 +10,7 @@ import {
     getAssignedOrdersEmployee,
     updateOrderStatus
 } from '../controllers/orders.controller';
+import { getOrderStats } from '../controllers/stats.controller';
 import { authMiddleware } from '../middleware/auth';
 import { requireRole } from '../middleware/role';
 
@@ -25,6 +26,7 @@ router.get('/assigned', authMiddleware, requireRole('employee'), getAssignedOrde
 router.patch('/:id/status', authMiddleware, requireRole('employee'), updateOrderStatus);
 
 // Admin
+router.get('/stats', authMiddleware, requireRole('admin'), getOrderStats);
 router.get('/', authMiddleware, requireRole('admin'), getAllOrdersAdmin);
 router.get('/:id', authMiddleware, requireRole('admin'), getOrderDetailsAdmin);
 router.patch('/:id/assign', authMiddleware, requireRole('admin'), assignOrderAdmin);

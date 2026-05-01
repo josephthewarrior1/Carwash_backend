@@ -32,10 +32,10 @@ export const createOrder = (req: AuthRequest, res: Response): any => {
 
         const tx = db.transaction(() => {
             const stmt = db.prepare(`
-        INSERT INTO orders (id, customer_id, service_id, vehicle_plate, vehicle_type, location_address, location_lat, location_lng, scheduled_at, notes, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
-      `);
-            stmt.run(orderId, userId, data.service_id, data.vehicle_plate, data.vehicle_type, data.location_address, data.location_lat || null, data.location_lng || null, data.scheduled_at, data.notes || null);
+        INSERT INTO orders (id, customer_id, service_id, vehicle_plate, vehicle_type, location_address, location_lat, location_lng, scheduled_at, notes, status, total_amount)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+        `);
+            stmt.run(orderId, userId, data.service_id, data.vehicle_plate, data.vehicle_type, data.location_address, data.location_lat || null, data.location_lng || null, data.scheduled_at, data.notes || null, service.price);
 
             const historyStmt = db.prepare(`
         INSERT INTO order_status_history (id, order_id, status, changed_by_user_id, note)
@@ -245,7 +245,11 @@ export const updateOrderStatus = (req: AuthRequest, res: Response): any => {
         }
 
         const tx = db.transaction(() => {
-            db.prepare(`UPDATE orders SET status = ? WHERE id = ?`).run(data.status, id);
+            if (data.status === 'done') {
+                db.prepare(`UPDATE orders SET status = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?`).run(data.status, id);
+            } else {
+                db.prepare(`UPDATE orders SET status = ? WHERE id = ?`).run(data.status, id);
+            }
             db.prepare(`
         INSERT INTO order_status_history (id, order_id, status, changed_by_user_id, note)
         VALUES (?, ?, ?, ?, ?)

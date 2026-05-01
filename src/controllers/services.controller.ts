@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import db from '../db';
 import crypto from 'crypto';
 import { z } from 'zod';
+import { AuthRequest } from '../middleware/auth';
 
 export const getAllServices = (req: Request, res: Response) => {
     try {
@@ -92,4 +93,79 @@ export const updateService = (req: Request, res: Response): any => {
         }
         res.status(500).json({ success: false, message: 'Internal server error', data: null });
     }
+};
+
+   // GET /services/supply-requests (Admin only)
+export const getSupplyRequests = (req: AuthRequest, res: Response): any => {
+  try {
+    // Get all requests, grouped by batch_id (fallback to id if batch_id is null)
+    const rows = db.prepare(`
+      SELECT sr.*, u.name as employee_name
+      FROM supply_requests sr
+      JOIN users u ON sr.employee_id = u.id
+      ORDER BY sr.created_at DESC
+    `).all() as any[];
+
+    // Group into batches
+    const batches: Record<string, any> = {};
+    for (const row of rows) {
+      const batchId = row.batch_id ?? row.id; // use own id if no batch_id
+      if (!batches[batchId]) {
+        batches[batchId] = {
+          batch_id: batchId,
+          employee_name: row.employee_name,
+          employee_id: row.employee_id,
+          status: row.status, // will be same for all items in batch
+          created_at: row.created_at,
+          items: [],
+        };
+      }
+      batches[batchId].items.push({
+        item_name: row.item_name,
+        quantity_requested: row.quantity_requested,
+      });
+    }
+
+    res.status(200).json({ success: true, data: Object.values(batches) });
+  } catch (e) {
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+// PATCH /services/supply-requests/:id (Admin only)
+export const updateSupplyRequest = (req: AuthRequest, res: Response): any => {
+  try {
+    const { id } = req.params; // this is batch_id
+    const { status } = req.body;
+
+    if (!['approved', 'rejected'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid status' });
+    }
+
+    const updateStmt = db.prepare(`UPDATE supply_requests SET status = ? WHERE batch_id = ?`);
+    updateStmt.run(status, id);
+    // Also update if there are rows with null batch_id but id = batch_id (old single items)
+    db.prepare(`UPDATE supply_requests SET status = ? WHERE id = ? AND batch_id IS NULL`).run(status, id);
+
+    res.status(200).json({ success: true, message: `Batch ${status}` });
+  } catch (e) {
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+// DELETE /services/supply-requests/:id (Admin only)
+export const deleteSupplyRequest = (req: AuthRequest, res: Response): any => {
+  try {
+    const { id } = req.params; // batch_id
+
+    // Delete all rows with this batch_id
+    const result = db.prepare(`DELETE FROM supply_requests WHERE batch_id = ?`).run(id);
+    if (result.changes === 0) {
+      // fallback: maybe it's a single item with id = batch_id
+      db.prepare(`DELETE FROM supply_requests WHERE id = ?`).run(id);
+    }
+    res.status(200).json({ success: true, message: 'Batch deleted' });
+  } catch (e) {
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
 };

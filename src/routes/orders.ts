@@ -9,6 +9,7 @@ import {
     cancelOrderAdmin,
     getAssignedOrdersEmployee,
     updateOrderStatus
+    , deleteOrderAdmin
 } from '../controllers/orders.controller';
 import { getOrderStats } from '../controllers/stats.controller';
 import { authMiddleware } from '../middleware/auth';
@@ -31,5 +32,6 @@ router.get('/', authMiddleware, requireRole('admin'), getAllOrdersAdmin);
 router.get('/:id', authMiddleware, requireRole('admin'), getOrderDetailsAdmin);
 router.patch('/:id/assign', authMiddleware, requireRole('admin'), assignOrderAdmin);
 router.patch('/:id/cancel', authMiddleware, requireRole('admin'), cancelOrderAdmin);
+router.delete('/:id', authMiddleware, requireRole('admin'), deleteOrderAdmin);
 
 export default router;

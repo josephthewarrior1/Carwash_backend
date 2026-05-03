@@ -30,12 +30,17 @@ export const createOrder = (req: AuthRequest, res: Response): any => {
             return res.status(400).json({ success: false, message: `Service only applicable for ${service.vehicle_type}`, data: null });
         }
 
+        const settingsRow = db.prepare(`SELECT value FROM business_settings WHERE key = 'commission_rate'`).get() as any;
+        const commissionRate = settingsRow ? parseFloat(settingsRow.value) : 0.7;
+        const washerPayout = service.price * commissionRate;
+        const platformRevenue = service.price - washerPayout;
+
         const tx = db.transaction(() => {
             const stmt = db.prepare(`
-        INSERT INTO orders (id, customer_id, service_id, vehicle_plate, vehicle_type, location_address, location_lat, location_lng, scheduled_at, notes, status, total_amount)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+        INSERT INTO orders (id, customer_id, service_id, vehicle_plate, vehicle_type, location_address, location_lat, location_lng, scheduled_at, notes, status, total_amount, washer_payout, platform_revenue)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
         `);
-            stmt.run(orderId, userId, data.service_id, data.vehicle_plate, data.vehicle_type, data.location_address, data.location_lat || null, data.location_lng || null, data.scheduled_at, data.notes || null, service.price);
+            stmt.run(orderId, userId, data.service_id, data.vehicle_plate, data.vehicle_type, data.location_address, data.location_lat || null, data.location_lng || null, data.scheduled_at, data.notes || null, service.price, washerPayout, platformRevenue);
 
             const historyStmt = db.prepare(`
         INSERT INTO order_status_history (id, order_id, status, changed_by_user_id, note)
@@ -265,5 +270,24 @@ export const updateOrderStatus = (req: AuthRequest, res: Response): any => {
             return res.status(400).json({ success: false, message: 'Validation error', data: (error as any).errors });
         }
         res.status(500).json({ success: false, message: 'Internal server error', data: null });
+    }
+};
+
+// DELETE /orders/:id – Admin only
+export const deleteOrderAdmin = (req: AuthRequest, res: Response): any => {
+    try {
+        const { id } = req.params;
+        const order = db.prepare(`SELECT * FROM orders WHERE id = ?`).get(id);
+        if (!order) {
+            return res.status(404).json({ success: false, message: 'Order not found' });
+        }
+
+        // Delete status history first (foreign key), then the order
+        db.prepare(`DELETE FROM order_status_history WHERE order_id = ?`).run(id);
+        db.prepare(`DELETE FROM orders WHERE id = ?`).run(id);
+
+        res.status(200).json({ success: true, message: 'Order deleted successfully' });
+    } catch (e) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };

@@ -15,7 +15,7 @@ export const getProfile = (req: AuthRequest, res: Response): any => {
     const completedJobs = db.prepare(`SELECT COUNT(*) as count FROM orders WHERE assigned_employee_id = ? AND status = 'done'`).get(userId) as any;
 
     // total earnings from completed orders
-    const earningsRow = db.prepare(`SELECT COALESCE(SUM(total_amount),0) as total FROM orders WHERE assigned_employee_id = ? AND status = 'done'`).get(userId) as any;
+    const earningsRow = db.prepare(`SELECT COALESCE(SUM(washer_payout),0) as total FROM orders WHERE assigned_employee_id = ? AND status = 'done'`).get(userId) as any;
 
     res.status(200).json({
       success: true,
@@ -46,7 +46,7 @@ export const getEarnings = (req: AuthRequest, res: Response): any => {
     // If a date is specified, filter by completed_at on that day
     if (dateParam) {
       const dayEarnings = db.prepare(`
-        SELECT COALESCE(SUM(total_amount),0) as total
+        SELECT COALESCE(SUM(washer_payout),0) as total
         FROM orders
         WHERE assigned_employee_id = ? AND status = 'done' AND date(completed_at) = ?
       `).get(userId, dateParam) as any;
@@ -73,17 +73,17 @@ export const getEarnings = (req: AuthRequest, res: Response): any => {
     const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
 
     const todayEarnings = db.prepare(`
-      SELECT COALESCE(SUM(total_amount),0) as total FROM orders
+      SELECT COALESCE(SUM(washer_payout),0) as total FROM orders
       WHERE assigned_employee_id = ? AND status = 'done' AND date(completed_at) = ?
     `).get(userId, today) as any;
 
     const weekEarnings = db.prepare(`
-      SELECT COALESCE(SUM(total_amount),0) as total FROM orders
+      SELECT COALESCE(SUM(washer_payout),0) as total FROM orders
       WHERE assigned_employee_id = ? AND status = 'done' AND completed_at >= ?
     `).get(userId, weekAgo) as any;
 
     const monthEarnings = db.prepare(`
-      SELECT COALESCE(SUM(total_amount),0) as total FROM orders
+      SELECT COALESCE(SUM(washer_payout),0) as total FROM orders
       WHERE assigned_employee_id = ? AND status = 'done' AND completed_at >= ?
     `).get(userId, monthStart) as any;
 

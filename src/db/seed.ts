@@ -44,6 +44,13 @@ export function seed() {
   } else {
     console.log("Services already exist. Skip seeding.");
   }
+
+  // Seed default commission rate
+  const existingRate = db.prepare("SELECT count(*) as count FROM business_settings WHERE key = 'commission_rate'").get() as { count: number };
+  if (existingRate.count === 0) {
+    db.prepare(`INSERT INTO business_settings (key, value) VALUES ('commission_rate', '0.70')`).run();
+    console.log("Default commission rate seeded (70%).");
+  }
 }
 
 if (require.main === module) {

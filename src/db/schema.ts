@@ -69,6 +69,18 @@ export function createSchema() {
     db.exec(`ALTER TABLE orders ADD COLUMN completed_at DATETIME`);
     console.log("Migrated: added completed_at column to orders.");
   }
+  if (!orderColumns.some(col => col.name === 'washer_payout')) {
+    db.exec(`ALTER TABLE orders ADD COLUMN washer_payout REAL DEFAULT 0.0`);
+    console.log("Migrated: added washer_payout column to orders.");
+  }
+  if (!orderColumns.some(col => col.name === 'platform_revenue')) {
+    db.exec(`ALTER TABLE orders ADD COLUMN platform_revenue REAL DEFAULT 0.0`);
+    console.log("Migrated: added platform_revenue column to orders.");
+  }
+  if (!orderColumns.some(col => col.name === 'total_amount')) {
+    db.exec(`ALTER TABLE orders ADD COLUMN total_amount REAL DEFAULT 0.0`);
+    console.log("Migrated: added total_amount column to orders.");
+  }
 
   const userColumns = db.pragma('table_info(users)') as { name: string }[];
   if (!userColumns.some(col => col.name === 'avatar_url')) {
@@ -116,6 +128,18 @@ export function createSchema() {
   } else if (!supplyColumns.some(col => col.name === 'batch_id')) {
     db.exec(`ALTER TABLE supply_requests ADD COLUMN batch_id TEXT`);
     console.log("Migrated: added batch_id column to supply_requests.");
+  }
+  
+  // Ensure business_settings table exists
+  const settingsTable = db.pragma('table_info(business_settings)') as { name: string }[];
+  if (!settingsTable || settingsTable.length === 0) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS business_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+    `);
+    console.log("Migrated: created business_settings table.");
   }
 }
 

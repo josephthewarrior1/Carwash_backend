@@ -15,7 +15,7 @@ export const getProfile = (req: AuthRequest, res: Response): any => {
     const completedJobs = db.prepare(`SELECT COUNT(*) as count FROM orders WHERE assigned_employee_id = ? AND status = 'done'`).get(userId) as any;
 
     // total earnings from completed orders
-    const earningsRow = db.prepare(`SELECT COALESCE(SUM(washer_payout),0) as total FROM orders WHERE assigned_employee_id = ? AND status = 'done'`).get(userId) as any;
+    const earningsRow = db.prepare(`SELECT COALESCE(SUM(washer_payout),0) as total FROM orders WHERE assigned_employee_id = ? AND status = 'done' AND payment_status = 'paid'`).get(userId) as any;
 
     res.status(200).json({
       success: true,
@@ -48,13 +48,13 @@ export const getEarnings = (req: AuthRequest, res: Response): any => {
       const dayEarnings = db.prepare(`
         SELECT COALESCE(SUM(washer_payout),0) as total
         FROM orders
-        WHERE assigned_employee_id = ? AND status = 'done' AND date(completed_at) = ?
+        WHERE assigned_employee_id = ? AND status = 'done' AND payment_status = 'paid' AND date(completed_at) = ?
       `).get(userId, dateParam) as any;
 
       const dayCount = db.prepare(`
         SELECT COUNT(*) as c
         FROM orders
-        WHERE assigned_employee_id = ? AND status = 'done' AND date(completed_at) = ?
+        WHERE assigned_employee_id = ? AND status = 'done' AND payment_status = 'paid' AND date(completed_at) = ?
       `).get(userId, dateParam) as any;
 
       return res.status(200).json({
@@ -74,22 +74,22 @@ export const getEarnings = (req: AuthRequest, res: Response): any => {
 
     const todayEarnings = db.prepare(`
       SELECT COALESCE(SUM(washer_payout),0) as total FROM orders
-      WHERE assigned_employee_id = ? AND status = 'done' AND date(completed_at) = ?
+      WHERE assigned_employee_id = ? AND status = 'done' AND payment_status = 'paid' AND date(completed_at) = ?
     `).get(userId, today) as any;
 
     const weekEarnings = db.prepare(`
       SELECT COALESCE(SUM(washer_payout),0) as total FROM orders
-      WHERE assigned_employee_id = ? AND status = 'done' AND completed_at >= ?
+      WHERE assigned_employee_id = ? AND status = 'done' AND payment_status = 'paid' AND completed_at >= ?
     `).get(userId, weekAgo) as any;
 
     const monthEarnings = db.prepare(`
       SELECT COALESCE(SUM(washer_payout),0) as total FROM orders
-      WHERE assigned_employee_id = ? AND status = 'done' AND completed_at >= ?
+      WHERE assigned_employee_id = ? AND status = 'done' AND payment_status = 'paid' AND completed_at >= ?
     `).get(userId, monthStart) as any;
 
     const completedToday = db.prepare(`
       SELECT COUNT(*) as c FROM orders
-      WHERE assigned_employee_id = ? AND status = 'done' AND date(completed_at) = ?
+      WHERE assigned_employee_id = ? AND status = 'done' AND payment_status = 'paid' AND date(completed_at) = ?
     `).get(userId, today) as any;
 
     res.status(200).json({

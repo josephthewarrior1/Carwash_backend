@@ -8,10 +8,14 @@ export const getFinanceSummary = (req: AuthRequest, res: Response): any => {
     const weekAgo = new Date(Date.now() - 7*24*60*60*1000).toISOString();
     const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
 
-    const todayRev = db.prepare(`SELECT COALESCE(SUM(platform_revenue),0) as total FROM orders WHERE status = 'done' AND date(completed_at) = ?`).get(today) as any;
-    const weekRev = db.prepare(`SELECT COALESCE(SUM(platform_revenue),0) as total FROM orders WHERE status = 'done' AND completed_at >= ?`).get(weekAgo) as any;
-    const monthRev = db.prepare(`SELECT COALESCE(SUM(platform_revenue),0) as total FROM orders WHERE status = 'done' AND completed_at >= ?`).get(monthStart) as any;
-    const allTimeRev = db.prepare(`SELECT COALESCE(SUM(platform_revenue),0) as total FROM orders WHERE status = 'done'`).get() as any;
+    // Revenue is only recognised once Xendit has confirmed payment. Marking
+    // an order 'done' alone is not enough — washer payout and platform
+    // revenue both accrue against payment_status = 'paid'.
+    const PAID = `status = 'done' AND payment_status = 'paid'`;
+    const todayRev = db.prepare(`SELECT COALESCE(SUM(platform_revenue),0) as total FROM orders WHERE ${PAID} AND date(completed_at) = ?`).get(today) as any;
+    const weekRev = db.prepare(`SELECT COALESCE(SUM(platform_revenue),0) as total FROM orders WHERE ${PAID} AND completed_at >= ?`).get(weekAgo) as any;
+    const monthRev = db.prepare(`SELECT COALESCE(SUM(platform_revenue),0) as total FROM orders WHERE ${PAID} AND completed_at >= ?`).get(monthStart) as any;
+    const allTimeRev = db.prepare(`SELECT COALESCE(SUM(platform_revenue),0) as total FROM orders WHERE ${PAID}`).get() as any;
 
     res.status(200).json({
       success: true,
@@ -34,7 +38,8 @@ export const getFinanceChart = (req: AuthRequest, res: Response): any => {
     const stmt = db.prepare(`
       SELECT date(completed_at) as day, SUM(platform_revenue) as rev
       FROM orders
-      WHERE status = 'done' AND completed_at >= date('now', ?)
+      WHERE status = 'done' AND payment_status = 'paid'
+        AND completed_at >= date('now', ?)
       GROUP BY day
       ORDER BY day
     `);
@@ -57,9 +62,13 @@ export const getFinanceChart = (req: AuthRequest, res: Response): any => {
 export const getPayroll = (req: AuthRequest, res: Response): any => {
   try {
     const rows = db.prepare(`
-      SELECT u.id, u.name, COUNT(o.id) as completed_jobs, COALESCE(SUM(o.washer_payout),0) as total_payout
+      SELECT u.id, u.name,
+        SUM(CASE WHEN o.status = 'done' AND o.payment_status = 'paid' THEN 1 ELSE 0 END) as completed_jobs,
+        COALESCE(SUM(CASE WHEN o.status = 'done' AND o.payment_status = 'paid' THEN o.washer_payout ELSE 0 END), 0) as total_payout,
+        SUM(CASE WHEN o.status = 'done' AND (o.payment_status IS NULL OR o.payment_status != 'paid') THEN 1 ELSE 0 END) as awaiting_payment_jobs,
+        COALESCE(SUM(CASE WHEN o.status = 'done' AND (o.payment_status IS NULL OR o.payment_status != 'paid') THEN o.washer_payout ELSE 0 END), 0) as awaiting_payment_total
       FROM users u
-      LEFT JOIN orders o ON u.id = o.assigned_employee_id AND o.status = 'done'
+      LEFT JOIN orders o ON u.id = o.assigned_employee_id
       WHERE u.role = 'employee'
       GROUP BY u.id
       ORDER BY total_payout DESC
@@ -100,6 +109,7 @@ export const getTransactions = (req: AuthRequest, res: Response): any => {
       SELECT
         o.id,
         o.status,
+        o.payment_status,
         o.total_amount,
         o.washer_payout,
         o.platform_revenue,
@@ -110,7 +120,7 @@ export const getTransactions = (req: AuthRequest, res: Response): any => {
       FROM orders o
       LEFT JOIN users c ON o.customer_id = c.id
       LEFT JOIN users e ON o.assigned_employee_id = e.id
-      WHERE o.status = 'done'
+      WHERE o.status = 'done' AND o.deleted_at IS NULL
       ORDER BY o.completed_at DESC
     `).all();
 

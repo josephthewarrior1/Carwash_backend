@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import db from '../db';
 import crypto from 'crypto';
 import { z } from 'zod';
+import { AuthRequest } from '../middleware/auth';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
 
@@ -87,6 +88,21 @@ export const login = (req: Request, res: Response): any => {
         if (error instanceof z.ZodError) {
             return res.status(400).json({ success: false, message: 'Validation error', data: (error as any).errors });
         }
+        res.status(500).json({ success: false, message: 'Internal server error', data: null });
+    }
+};
+
+export const getMe = (req: AuthRequest, res: Response): any => {
+    try {
+        const userId = req.user!.id;
+        const user = db.prepare(
+            `SELECT id, name, email, role, phone, address, avatar_url, created_at FROM users WHERE id = ?`
+        ).get(userId) as any;
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found', data: null });
+        }
+        res.status(200).json({ success: true, message: 'User retrieved successfully', data: { user } });
+    } catch (e) {
         res.status(500).json({ success: false, message: 'Internal server error', data: null });
     }
 };

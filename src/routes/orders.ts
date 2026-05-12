@@ -24,7 +24,7 @@ router.get('/my/:id', authMiddleware, requireRole('customer'), getMyOrderDetails
 
 // Employee
 router.get('/assigned', authMiddleware, requireRole('employee'), getAssignedOrdersEmployee);
-router.patch('/:id/status', authMiddleware, requireRole('employee'), updateOrderStatus);
+router.patch('/:id/status', authMiddleware, requireRole('employee', 'admin'), updateOrderStatus);
 
 // Admin
 router.get('/stats', authMiddleware, requireRole('admin'), getOrderStats);

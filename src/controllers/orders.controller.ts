@@ -65,7 +65,13 @@ export const createOrder = (req: AuthRequest, res: Response): any => {
 export const getMyOrders = (req: AuthRequest, res: Response): any => {
     try {
         const userId = req.user!.id;
-        const orders = db.prepare(`SELECT * FROM orders WHERE customer_id = ? ORDER BY created_at DESC`).all(userId);
+        const orders = db.prepare(`
+            SELECT o.*, s.name as service_name
+            FROM orders o
+            LEFT JOIN services s ON o.service_id = s.id
+            WHERE o.customer_id = ?
+            ORDER BY o.created_at DESC
+        `).all(userId);
         res.status(200).json({ success: true, message: 'Orders retrieved successfully', data: orders });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error', data: null });
@@ -208,7 +214,13 @@ export const cancelOrderAdmin = (req: AuthRequest, res: Response): any => {
 export const getAssignedOrdersEmployee = (req: AuthRequest, res: Response): any => {
     try {
         const employeeId = req.user!.id;
-        const orders = db.prepare(`SELECT * FROM orders WHERE assigned_employee_id = ? ORDER BY scheduled_at ASC`).all(employeeId);
+        const orders = db.prepare(`
+            SELECT o.*, s.name as service_name
+            FROM orders o
+            LEFT JOIN services s ON o.service_id = s.id
+            WHERE o.assigned_employee_id = ?
+            ORDER BY o.scheduled_at ASC
+        `).all(employeeId);
         res.status(200).json({ success: true, message: 'Assigned orders retrieved successfully', data: orders });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error', data: null });
@@ -241,6 +253,9 @@ export const updateOrderStatus = (req: AuthRequest, res: Response): any => {
 
         if (userRole === 'employee' && order.assigned_employee_id !== userId) {
             return res.status(403).json({ success: false, message: 'Forbidden: Order is not assigned to you', data: null });
+        }
+        if (userRole === 'admin' && !['confirmed', 'on_the_way', 'in_progress'].includes(order.status)) {
+            return res.status(400).json({ success: false, message: `Cannot update status from ${order.status}`, data: null });
         }
 
         // Validation transition

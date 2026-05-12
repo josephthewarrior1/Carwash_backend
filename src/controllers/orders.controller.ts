@@ -269,7 +269,13 @@ export const getAssignedOrdersEmployee = (req: AuthRequest, res: Response): any 
     try {
         const employeeId = req.user!.id;
         const orders = db.prepare(`
-            SELECT o.*, s.name as service_name, c.name as customer_name
+            SELECT
+                o.*,
+                s.name as service_name,
+                s.duration as service_duration,
+                c.name as customer_name,
+                c.phone as customer_phone,
+                c.avatar_url as customer_avatar
             FROM orders o
             LEFT JOIN services s ON o.service_id = s.id
             LEFT JOIN users c ON o.customer_id = c.id

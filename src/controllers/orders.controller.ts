@@ -96,8 +96,9 @@ export const createOrder = (req: AuthRequest, res: Response): any => {
         res.status(201).json({ success: true, message: 'Order created successfully', data: newOrder });
     } catch (error: any) {
         if (error instanceof z.ZodError) {
-            return res.status(400).json({ success: false, message: 'Validation error', data: (error as any).errors });
+            return res.status(400).json({ success: false, message: 'Validation error', data: (error as any).issues ?? (error as any).errors });
         }
+        console.error('createOrder error:', error?.message ?? error);
         res.status(500).json({ success: false, message: 'Internal server error', data: null });
     }
 };

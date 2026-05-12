@@ -97,6 +97,11 @@ export function createSchema() {
   // The original orders table was created with a restrictive CHECK constraint
   // that doesn't allow new statuses (assigned, no_show, failed). SQLite can't
   // ALTER a CHECK, so detect and rebuild the table without the constraint.
+  //
+  // `legacy_alter_table = ON` is critical: it stops ALTER TABLE RENAME from
+  // updating foreign-key references in other tables. Without it, the FK on
+  // order_status_history follows the rename to `orders_legacy` and then dangles
+  // once we drop that table.
   const orderSqlRow = db.prepare(
     `SELECT sql FROM sqlite_master WHERE type='table' AND name='orders'`
   ).get() as { sql: string } | undefined;
@@ -104,6 +109,7 @@ export function createSchema() {
       && !/'assigned'/.test(orderSqlRow.sql)) {
     console.log("Migrating: rebuilding orders table to drop legacy CHECK constraint...");
     db.exec(`
+      PRAGMA legacy_alter_table = ON;
       PRAGMA foreign_keys = OFF;
       BEGIN;
       ALTER TABLE orders RENAME TO orders_legacy;
@@ -150,8 +156,41 @@ export function createSchema() {
       DROP TABLE orders_legacy;
       COMMIT;
       PRAGMA foreign_keys = ON;
+      PRAGMA legacy_alter_table = OFF;
     `);
     console.log("Migrated: orders table rebuilt without CHECK constraint.");
+  }
+
+  // Fix the previous failed migration: if order_status_history.order_id FK
+  // still points at the (now dropped) orders_legacy table, rebuild it so its
+  // FK references the real orders table again.
+  const oshSqlRow = db.prepare(
+    `SELECT sql FROM sqlite_master WHERE type='table' AND name='order_status_history'`
+  ).get() as { sql: string } | undefined;
+  if (oshSqlRow && /orders_legacy/.test(oshSqlRow.sql)) {
+    console.log("Migrating: repairing order_status_history FK reference...");
+    db.exec(`
+      PRAGMA foreign_keys = OFF;
+      BEGIN;
+      CREATE TABLE order_status_history_new (
+        id TEXT PRIMARY KEY,
+        order_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        changed_by_user_id TEXT NOT NULL,
+        note TEXT,
+        changed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (order_id) REFERENCES orders(id),
+        FOREIGN KEY (changed_by_user_id) REFERENCES users(id)
+      );
+      INSERT INTO order_status_history_new
+        SELECT id, order_id, status, changed_by_user_id, note, changed_at
+        FROM order_status_history;
+      DROP TABLE order_status_history;
+      ALTER TABLE order_status_history_new RENAME TO order_status_history;
+      COMMIT;
+      PRAGMA foreign_keys = ON;
+    `);
+    console.log("Migrated: order_status_history FK repaired.");
   }
   if (!orderColumns.some(col => col.name === 'washer_payout')) {
     db.exec(`ALTER TABLE orders ADD COLUMN washer_payout REAL DEFAULT 0.0`);

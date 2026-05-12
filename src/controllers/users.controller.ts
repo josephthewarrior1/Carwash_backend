@@ -2,6 +2,46 @@ import { Response } from 'express';
 import db from '../db';
 import { z } from 'zod';
 import { AuthRequest } from '../middleware/auth';
+import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
+
+const createWasherSchema = z.object({
+    name: z.string().min(1),
+    email: z.string().email(),
+    password: z.string().min(6),
+    address: z.string().optional().nullable(),
+    phone: z.string().optional().nullable(),
+});
+
+export const createWasher = (req: AuthRequest, res: Response): any => {
+    try {
+        const data = createWasherSchema.parse(req.body);
+
+        const existing = db.prepare(`SELECT id FROM users WHERE email = ?`).get(data.email);
+        if (existing) {
+            return res.status(400).json({ success: false, message: 'Email already exists', data: null });
+        }
+
+        const id = crypto.randomUUID();
+        const hashedPassword = bcrypt.hashSync(data.password, 10);
+
+        db.prepare(`
+            INSERT INTO users (id, name, email, password, role, address, phone)
+            VALUES (?, ?, ?, ?, 'employee', ?, ?)
+        `).run(id, data.name, data.email, hashedPassword, data.address || null, data.phone || null);
+
+        const washer = db.prepare(
+            `SELECT id, name, email, role, address, phone, avatar_url, created_at FROM users WHERE id = ?`
+        ).get(id);
+
+        res.status(201).json({ success: true, message: 'Washer created successfully', data: washer });
+    } catch (error: any) {
+        if (error instanceof z.ZodError) {
+            return res.status(400).json({ success: false, message: 'Validation error', data: (error as any).errors });
+        }
+        res.status(500).json({ success: false, message: 'Internal server error', data: null });
+    }
+};
 
 export const listUsers = (req: AuthRequest, res: Response): any => {
     try {

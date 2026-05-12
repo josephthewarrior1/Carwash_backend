@@ -81,6 +81,18 @@ export function createSchema() {
     db.exec(`ALTER TABLE orders ADD COLUMN total_amount REAL DEFAULT 0.0`);
     console.log("Migrated: added total_amount column to orders.");
   }
+  if (!orderColumns.some(col => col.name === 'payment_status')) {
+    db.exec(`ALTER TABLE orders ADD COLUMN payment_status TEXT DEFAULT NULL`);
+    console.log("Migrated: added payment_status column to orders.");
+  }
+  if (!orderColumns.some(col => col.name === 'xendit_invoice_id')) {
+    db.exec(`ALTER TABLE orders ADD COLUMN xendit_invoice_id TEXT DEFAULT NULL`);
+    console.log("Migrated: added xendit_invoice_id column to orders.");
+  }
+  if (!orderColumns.some(col => col.name === 'xendit_invoice_url')) {
+    db.exec(`ALTER TABLE orders ADD COLUMN xendit_invoice_url TEXT DEFAULT NULL`);
+    console.log("Migrated: added xendit_invoice_url column to orders.");
+  }
 
   const userColumns = db.pragma('table_info(users)') as { name: string }[];
   if (!userColumns.some(col => col.name === 'avatar_url')) {

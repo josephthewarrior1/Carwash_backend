@@ -83,7 +83,12 @@ export const getMyOrderDetails = (req: AuthRequest, res: Response): any => {
         const userId = req.user!.id;
         const { id } = req.params;
 
-        const order = db.prepare(`SELECT * FROM orders WHERE id = ? AND customer_id = ?`).get(id, userId);
+        const order = db.prepare(`
+            SELECT o.*, s.name as service_name
+            FROM orders o
+            LEFT JOIN services s ON o.service_id = s.id
+            WHERE o.id = ? AND o.customer_id = ?
+        `).get(id, userId);
         if (!order) {
             return res.status(404).json({ success: false, message: 'Order not found', data: null });
         }

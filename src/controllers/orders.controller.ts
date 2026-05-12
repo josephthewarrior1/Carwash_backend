@@ -51,7 +51,12 @@ export const createOrder = (req: AuthRequest, res: Response): any => {
         });
 
         const resultId = tx();
-        const newOrder = db.prepare(`SELECT * FROM orders WHERE id = ?`).get(resultId);
+        const newOrder = db.prepare(`
+            SELECT o.*, c.name as customer_name
+            FROM orders o
+            LEFT JOIN users c ON o.customer_id = c.id
+            WHERE o.id = ?
+        `).get(resultId);
 
         res.status(201).json({ success: true, message: 'Order created successfully', data: newOrder });
     } catch (error: any) {
@@ -66,9 +71,10 @@ export const getMyOrders = (req: AuthRequest, res: Response): any => {
     try {
         const userId = req.user!.id;
         const orders = db.prepare(`
-            SELECT o.*, s.name as service_name
+            SELECT o.*, s.name as service_name, c.name as customer_name
             FROM orders o
             LEFT JOIN services s ON o.service_id = s.id
+            LEFT JOIN users c ON o.customer_id = c.id
             WHERE o.customer_id = ?
             ORDER BY o.created_at DESC
         `).all(userId);
@@ -87,11 +93,13 @@ export const getMyOrderDetails = (req: AuthRequest, res: Response): any => {
             SELECT
                 o.*,
                 s.name as service_name,
+                c.name as customer_name,
                 w.name as washer_name,
                 w.phone as washer_phone,
                 w.avatar_url as washer_avatar
             FROM orders o
             LEFT JOIN services s ON o.service_id = s.id
+            LEFT JOIN users c ON o.customer_id = c.id
             LEFT JOIN users w ON o.assigned_employee_id = w.id
             WHERE o.id = ? AND o.customer_id = ?
         `).get(id, userId);
@@ -110,18 +118,23 @@ export const getMyOrderDetails = (req: AuthRequest, res: Response): any => {
 export const getAllOrdersAdmin = (req: AuthRequest, res: Response): any => {
     try {
         const { status, date } = req.query;
-        let query = `SELECT * FROM orders WHERE 1=1`;
+        let query = `
+            SELECT o.*, c.name as customer_name
+            FROM orders o
+            LEFT JOIN users c ON o.customer_id = c.id
+            WHERE 1=1
+        `;
         const params: any[] = [];
 
         if (status) {
-            query += ` AND status = ?`;
+            query += ` AND o.status = ?`;
             params.push(status);
         }
         if (date) {
-            query += ` AND date(scheduled_at) = date(?)`;
+            query += ` AND date(o.scheduled_at) = date(?)`;
             params.push(date);
         }
-        query += ` ORDER BY created_at DESC`;
+        query += ` ORDER BY o.created_at DESC`;
 
         const orders = db.prepare(query).all(...params);
         res.status(200).json({ success: true, message: 'Orders retrieved successfully', data: orders });
@@ -194,7 +207,12 @@ export const assignOrderAdmin = (req: AuthRequest, res: Response): any => {
         });
 
         tx();
-        const updatedOrder = db.prepare(`SELECT * FROM orders WHERE id = ?`).get(id);
+        const updatedOrder = db.prepare(`
+            SELECT o.*, c.name as customer_name
+            FROM orders o
+            LEFT JOIN users c ON o.customer_id = c.id
+            WHERE o.id = ?
+        `).get(id);
 
         res.status(200).json({ success: true, message: 'Order assigned successfully', data: updatedOrder });
     } catch (error: any) {
@@ -228,7 +246,12 @@ export const cancelOrderAdmin = (req: AuthRequest, res: Response): any => {
         });
 
         tx();
-        const updatedOrder = db.prepare(`SELECT * FROM orders WHERE id = ?`).get(id);
+        const updatedOrder = db.prepare(`
+            SELECT o.*, c.name as customer_name
+            FROM orders o
+            LEFT JOIN users c ON o.customer_id = c.id
+            WHERE o.id = ?
+        `).get(id);
 
         res.status(200).json({ success: true, message: 'Order cancelled successfully', data: updatedOrder });
     } catch (error) {
@@ -240,9 +263,10 @@ export const getAssignedOrdersEmployee = (req: AuthRequest, res: Response): any 
     try {
         const employeeId = req.user!.id;
         const orders = db.prepare(`
-            SELECT o.*, s.name as service_name
+            SELECT o.*, s.name as service_name, c.name as customer_name
             FROM orders o
             LEFT JOIN services s ON o.service_id = s.id
+            LEFT JOIN users c ON o.customer_id = c.id
             WHERE o.assigned_employee_id = ?
             ORDER BY o.scheduled_at ASC
         `).all(employeeId);
@@ -302,7 +326,12 @@ export const updateOrderStatus = (req: AuthRequest, res: Response): any => {
         });
 
         tx();
-        const updatedOrder = db.prepare(`SELECT * FROM orders WHERE id = ?`).get(id);
+        const updatedOrder = db.prepare(`
+            SELECT o.*, c.name as customer_name
+            FROM orders o
+            LEFT JOIN users c ON o.customer_id = c.id
+            WHERE o.id = ?
+        `).get(id);
 
         res.status(200).json({ success: true, message: `Order status updated to ${data.status}`, data: updatedOrder });
     } catch (error: any) {

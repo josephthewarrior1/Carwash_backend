@@ -387,7 +387,7 @@ const validTransitions: Record<string, string[]> = {
     'failed': [],
 };
 
-const MIN_WASH_DURATION_MINUTES = 5;
+const MIN_WASH_DURATION_MINUTES = 1;
 
 const updateStatusSchema = z.object({
     status: z.enum(['on_the_way', 'in_progress', 'done', 'no_show', 'failed']),

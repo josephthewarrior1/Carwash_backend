@@ -6,7 +6,12 @@ import { AuthRequest } from '../middleware/auth';
 
 export const getAllServices = (req: Request, res: Response) => {
     try {
-        const services = db.prepare(`SELECT * FROM services`).all();
+        // Customers/washers only see active services. Admin sees all.
+        const includeInactive = (req as any).user?.role === 'admin';
+        const sql = includeInactive
+            ? `SELECT * FROM services ORDER BY name`
+            : `SELECT * FROM services WHERE COALESCE(is_active, 1) = 1 ORDER BY name`;
+        const services = db.prepare(sql).all();
         res.status(200).json({ success: true, message: 'Services retrieved successfully', data: services });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error', data: null });
@@ -63,6 +68,7 @@ const updateServiceSchema = z.object({
     duration: z.number().int().positive().optional(),
     vehicle_type: z.enum(['sedan', 'suv', 'truck', 'motorcycle']).optional(),
     image_url: z.string().optional().nullable(),
+    is_active: z.boolean().optional().transform((v) => v === undefined ? undefined : (v ? 1 : 0)),
 });
 
 export const updateService = (req: Request, res: Response): any => {

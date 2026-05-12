@@ -59,6 +59,9 @@ export function createSchema() {
     db.exec(`ALTER TABLE services ADD COLUMN duration INTEGER NOT NULL DEFAULT 60`);
     console.log("Migrated: added duration column to services.");
   }
+  if (!serviceColumns.some(col => col.name === 'is_active')) {
+    db.exec(`ALTER TABLE services ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1`);
+  }
   if (!serviceColumns.some(col => col.name === 'image_url')) {
     db.exec(`ALTER TABLE services ADD COLUMN image_url TEXT`);
     console.log("Migrated: added image_url column to services.");
@@ -68,6 +71,27 @@ export function createSchema() {
   if (!orderColumns.some(col => col.name === 'completed_at')) {
     db.exec(`ALTER TABLE orders ADD COLUMN completed_at DATETIME`);
     console.log("Migrated: added completed_at column to orders.");
+  }
+  if (!orderColumns.some(col => col.name === 'before_photo_url')) {
+    db.exec(`ALTER TABLE orders ADD COLUMN before_photo_url TEXT`);
+  }
+  if (!orderColumns.some(col => col.name === 'after_photo_url')) {
+    db.exec(`ALTER TABLE orders ADD COLUMN after_photo_url TEXT`);
+  }
+  if (!orderColumns.some(col => col.name === 'cancellation_reason')) {
+    db.exec(`ALTER TABLE orders ADD COLUMN cancellation_reason TEXT`);
+  }
+  if (!orderColumns.some(col => col.name === 'cancelled_by')) {
+    db.exec(`ALTER TABLE orders ADD COLUMN cancelled_by TEXT`);
+  }
+  if (!orderColumns.some(col => col.name === 'accepted_at')) {
+    db.exec(`ALTER TABLE orders ADD COLUMN accepted_at DATETIME`);
+  }
+  if (!orderColumns.some(col => col.name === 'started_at')) {
+    db.exec(`ALTER TABLE orders ADD COLUMN started_at DATETIME`);
+  }
+  if (!orderColumns.some(col => col.name === 'deleted_at')) {
+    db.exec(`ALTER TABLE orders ADD COLUMN deleted_at DATETIME`);
   }
   if (!orderColumns.some(col => col.name === 'washer_payout')) {
     db.exec(`ALTER TABLE orders ADD COLUMN washer_payout REAL DEFAULT 0.0`);
@@ -152,6 +176,45 @@ export function createSchema() {
       );
     `);
     console.log("Migrated: created business_settings table.");
+  }
+
+  // ─── Notifications ────────────────────────────────────────
+  const notifColumns = db.pragma('table_info(notifications)') as { name: string }[];
+  if (!notifColumns || notifColumns.length === 0) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        body TEXT,
+        order_id TEXT,
+        read_at DATETIME,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      );
+    `);
+    console.log("Migrated: created notifications table.");
+  }
+
+  // ─── Payouts ──────────────────────────────────────────────
+  const payoutColumns = db.pragma('table_info(payouts)') as { name: string }[];
+  if (!payoutColumns || payoutColumns.length === 0) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS payouts (
+        id TEXT PRIMARY KEY,
+        employee_id TEXT NOT NULL,
+        amount REAL NOT NULL,
+        period_start DATETIME NOT NULL,
+        period_end DATETIME NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        paid_at DATETIME,
+        note TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (employee_id) REFERENCES users(id)
+      );
+    `);
+    console.log("Migrated: created payouts table.");
   }
 }
 

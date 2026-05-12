@@ -7,9 +7,12 @@ import {
     getOrderDetailsAdmin,
     assignOrderAdmin,
     cancelOrderAdmin,
+    cancelOrderCustomer,
+    acceptOrderEmployee,
+    declineOrderEmployee,
     getAssignedOrdersEmployee,
-    updateOrderStatus
-    , deleteOrderAdmin
+    updateOrderStatus,
+    deleteOrderAdmin,
 } from '../controllers/orders.controller';
 import { getOrderStats } from '../controllers/stats.controller';
 import { authMiddleware } from '../middleware/auth';
@@ -21,9 +24,12 @@ const router = Router();
 router.post('/', authMiddleware, requireRole('customer'), createOrder);
 router.get('/my', authMiddleware, requireRole('customer'), getMyOrders);
 router.get('/my/:id', authMiddleware, requireRole('customer'), getMyOrderDetails);
+router.post('/my/:id/cancel', authMiddleware, requireRole('customer'), cancelOrderCustomer);
 
 // Employee
 router.get('/assigned', authMiddleware, requireRole('employee'), getAssignedOrdersEmployee);
+router.post('/assigned/:id/accept', authMiddleware, requireRole('employee'), acceptOrderEmployee);
+router.post('/assigned/:id/decline', authMiddleware, requireRole('employee'), declineOrderEmployee);
 router.patch('/:id/status', authMiddleware, requireRole('employee', 'admin'), updateOrderStatus);
 
 // Admin

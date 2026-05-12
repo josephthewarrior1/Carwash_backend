@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { AuthRequest } from '../middleware/auth';
 import { syncPaymentStatus } from '../utils/xendit';
 import { notify } from '../utils/notifications';
+import { normaliseTimestamps, parseUtcDate } from '../utils/dates';
 
 const createOrderSchema = z.object({
     service_id: z.string().uuid(),
@@ -112,6 +113,7 @@ export const getMyOrders = (req: AuthRequest, res: Response): any => {
             LEFT JOIN services s ON o.service_id = s.id
             LEFT JOIN users c ON o.customer_id = c.id
             WHERE o.customer_id = ?
+              AND o.deleted_at IS NULL
             ORDER BY o.created_at DESC
         `).all(userId);
         res.status(200).json({ success: true, message: 'Orders retrieved successfully', data: orders });
@@ -142,7 +144,7 @@ export const getMyOrderDetails = async (req: AuthRequest, res: Response): Promis
             LEFT JOIN services s ON o.service_id = s.id
             LEFT JOIN users c ON o.customer_id = c.id
             LEFT JOIN users w ON o.assigned_employee_id = w.id
-            WHERE o.id = ? AND o.customer_id = ?
+            WHERE o.id = ? AND o.customer_id = ? AND o.deleted_at IS NULL
         `).get(id, userId);
         if (!order) {
             return res.status(404).json({ success: false, message: 'Order not found', data: null });
@@ -163,7 +165,7 @@ export const getAllOrdersAdmin = (req: AuthRequest, res: Response): any => {
             SELECT o.*, c.name as customer_name
             FROM orders o
             LEFT JOIN users c ON o.customer_id = c.id
-            WHERE 1=1
+            WHERE o.deleted_at IS NULL
         `;
         const params: any[] = [];
 
@@ -200,7 +202,7 @@ export const getOrderDetailsAdmin = (req: AuthRequest, res: Response): any => {
             LEFT JOIN services s ON o.service_id = s.id
             LEFT JOIN users c ON o.customer_id = c.id
             LEFT JOIN users w ON o.assigned_employee_id = w.id
-            WHERE o.id = ?
+            WHERE o.id = ? AND o.deleted_at IS NULL
         `).get(id);
 
         if (!order) {
@@ -367,6 +369,7 @@ export const getAssignedOrdersEmployee = (req: AuthRequest, res: Response): any 
             LEFT JOIN services s ON o.service_id = s.id
             LEFT JOIN users c ON o.customer_id = c.id
             WHERE o.assigned_employee_id = ?
+              AND o.deleted_at IS NULL
             ORDER BY o.scheduled_at ASC
         `).all(employeeId);
         res.status(200).json({ success: true, message: 'Assigned orders retrieved successfully', data: orders });
@@ -419,10 +422,15 @@ export const updateOrderStatus = (req: AuthRequest, res: Response): any => {
             return res.status(400).json({ success: false, message: `Invalid status transition from ${order.status} to ${data.status}`, data: null });
         }
 
-        // Quality: minimum elapsed wash duration before marking done
+        // Quality: minimum elapsed wash duration before marking done.
+        // started_at is stored as a naive UTC string by SQLite; parseUtcDate
+        // appends a Z so Node parses it correctly regardless of the server's
+        // local timezone (the production box is Asia/Shanghai, not UTC).
         if (data.status === 'done' && order.started_at) {
-            const elapsedMinutes =
-                (Date.now() - new Date(order.started_at).getTime()) / 1000 / 60;
+            const startedAt = parseUtcDate(order.started_at);
+            const elapsedMinutes = startedAt
+                ? (Date.now() - startedAt.getTime()) / 1000 / 60
+                : 0;
             if (elapsedMinutes < MIN_WASH_DURATION_MINUTES) {
                 return res.status(400).json({
                     success: false,

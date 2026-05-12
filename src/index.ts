@@ -12,6 +12,7 @@ import adminFinanceRoutes from './routes/admin_finance';
 import paymentRoutes from './routes/payments';
 import notificationRoutes from './routes/notifications';
 import { startCronJobs } from './utils/cron';
+import { normaliseTimestamps } from './utils/dates';
 
 
 dotenv.config();
@@ -24,6 +25,27 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+
+// Normalise all known timestamp fields to ISO-8601 UTC ("…Z") on every JSON
+// response. SQLite emits "YYYY-MM-DD HH:MM:SS" without a tz designator, and
+// both Node's Date and Flutter's DateTime.parse interpret that as local time,
+// causing display drift equal to the local tz offset. This middleware walks
+// the JSON body and fixes timestamp fields by name before sending.
+app.use((req, res, next) => {
+    const originalJson = res.json.bind(res);
+    res.json = (body?: any) => {
+        if (body && typeof body === 'object') {
+            if (Array.isArray(body)) {
+                body = body.map(normaliseTimestamps);
+            } else {
+                if ('data' in body) body.data = normaliseTimestamps(body.data);
+                else body = normaliseTimestamps(body);
+            }
+        }
+        return originalJson(body);
+    };
+    next();
+});
 
 // Main Routes
 app.use('/auth', authRoutes);

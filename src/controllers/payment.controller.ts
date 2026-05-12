@@ -34,6 +34,30 @@ function xenditPost(path: string, body: object): Promise<any> {
     });
 }
 
+function xenditGet(path: string): Promise<any> {
+    return new Promise((resolve, reject) => {
+        const auth = Buffer.from(`${XENDIT_SECRET}:`).toString('base64');
+        const options: https.RequestOptions = {
+            hostname: 'api.xendit.co',
+            path,
+            method: 'GET',
+            headers: {
+                Authorization: `Basic ${auth}`,
+                'Content-Type': 'application/json',
+            },
+        };
+        const req = https.request(options, (res) => {
+            let raw = '';
+            res.on('data', (chunk) => (raw += chunk));
+            res.on('end', () => {
+                try { resolve(JSON.parse(raw)); } catch { reject(new Error(raw)); }
+            });
+        });
+        req.on('error', reject);
+        req.end();
+    });
+}
+
 // POST /payments/:orderId  — create or return existing pending invoice
 export const createPayment = async (req: AuthRequest, res: Response): Promise<any> => {
     try {
@@ -99,8 +123,8 @@ export const createPayment = async (req: AuthRequest, res: Response): Promise<an
     }
 };
 
-// GET /payments/:orderId — get current payment status
-export const getPaymentStatus = (req: AuthRequest, res: Response): any => {
+// GET /payments/:orderId — get current payment status, syncing with Xendit if pending
+export const getPaymentStatus = async (req: AuthRequest, res: Response): Promise<any> => {
     try {
         const { orderId } = req.params;
         const userId = req.user!.id;
@@ -112,10 +136,27 @@ export const getPaymentStatus = (req: AuthRequest, res: Response): any => {
 
         if (!order) return res.status(404).json({ success: false, message: 'Order not found', data: null });
 
+        // If still pending and we have an invoice id, poll Xendit for the latest state.
+        // This is what makes the client-side polling fast and reliable even without
+        // a webhook URL configured.
+        let paymentStatus = order.payment_status;
+        if (paymentStatus === 'pending' && order.xendit_invoice_id) {
+            try {
+                const remote = await xenditGet(`/v2/invoices/${order.xendit_invoice_id}`);
+                if (remote?.status === 'PAID' || remote?.status === 'SETTLED') {
+                    db.prepare(`UPDATE orders SET payment_status = 'paid' WHERE id = ?`).run(orderId);
+                    paymentStatus = 'paid';
+                } else if (remote?.status === 'EXPIRED') {
+                    db.prepare(`UPDATE orders SET payment_status = 'expired', xendit_invoice_url = NULL WHERE id = ?`).run(orderId);
+                    paymentStatus = 'expired';
+                }
+            } catch (_) { /* ignore poll failures, return DB value */ }
+        }
+
         return res.json({
             success: true,
             data: {
-                payment_status: order.payment_status,
+                payment_status: paymentStatus,
                 invoice_url: order.xendit_invoice_url,
                 invoice_id: order.xendit_invoice_id,
                 amount: order.total_amount,

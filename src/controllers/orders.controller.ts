@@ -84,9 +84,15 @@ export const getMyOrderDetails = (req: AuthRequest, res: Response): any => {
         const { id } = req.params;
 
         const order = db.prepare(`
-            SELECT o.*, s.name as service_name
+            SELECT
+                o.*,
+                s.name as service_name,
+                w.name as washer_name,
+                w.phone as washer_phone,
+                w.avatar_url as washer_avatar
             FROM orders o
             LEFT JOIN services s ON o.service_id = s.id
+            LEFT JOIN users w ON o.assigned_employee_id = w.id
             WHERE o.id = ? AND o.customer_id = ?
         `).get(id, userId);
         if (!order) {
@@ -127,7 +133,21 @@ export const getAllOrdersAdmin = (req: AuthRequest, res: Response): any => {
 export const getOrderDetailsAdmin = (req: AuthRequest, res: Response): any => {
     try {
         const { id } = req.params;
-        const order = db.prepare(`SELECT * FROM orders WHERE id = ?`).get(id);
+        const order = db.prepare(`
+            SELECT
+                o.*,
+                s.name as service_name,
+                c.name as customer_name,
+                c.phone as customer_phone,
+                w.name as washer_name,
+                w.phone as washer_phone,
+                w.avatar_url as washer_avatar
+            FROM orders o
+            LEFT JOIN services s ON o.service_id = s.id
+            LEFT JOIN users c ON o.customer_id = c.id
+            LEFT JOIN users w ON o.assigned_employee_id = w.id
+            WHERE o.id = ?
+        `).get(id);
 
         if (!order) {
             return res.status(404).json({ success: false, message: 'Order not found', data: null });

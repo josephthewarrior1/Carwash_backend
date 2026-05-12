@@ -93,6 +93,66 @@ export function createSchema() {
   if (!orderColumns.some(col => col.name === 'deleted_at')) {
     db.exec(`ALTER TABLE orders ADD COLUMN deleted_at DATETIME`);
   }
+
+  // The original orders table was created with a restrictive CHECK constraint
+  // that doesn't allow new statuses (assigned, no_show, failed). SQLite can't
+  // ALTER a CHECK, so detect and rebuild the table without the constraint.
+  const orderSqlRow = db.prepare(
+    `SELECT sql FROM sqlite_master WHERE type='table' AND name='orders'`
+  ).get() as { sql: string } | undefined;
+  if (orderSqlRow && /CHECK\(status IN/.test(orderSqlRow.sql)
+      && !/'assigned'/.test(orderSqlRow.sql)) {
+    console.log("Migrating: rebuilding orders table to drop legacy CHECK constraint...");
+    db.exec(`
+      PRAGMA foreign_keys = OFF;
+      BEGIN;
+      ALTER TABLE orders RENAME TO orders_legacy;
+      CREATE TABLE orders (
+        id TEXT PRIMARY KEY,
+        customer_id TEXT NOT NULL,
+        service_id TEXT NOT NULL,
+        assigned_employee_id TEXT,
+        vehicle_plate TEXT NOT NULL,
+        vehicle_type TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        location_address TEXT NOT NULL,
+        location_lat REAL,
+        location_lng REAL,
+        scheduled_at DATETIME NOT NULL,
+        notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        completed_at DATETIME,
+        washer_payout REAL DEFAULT 0.0,
+        platform_revenue REAL DEFAULT 0.0,
+        total_amount REAL DEFAULT 0.0,
+        payment_status TEXT,
+        xendit_invoice_id TEXT,
+        xendit_invoice_url TEXT,
+        before_photo_url TEXT,
+        after_photo_url TEXT,
+        cancellation_reason TEXT,
+        cancelled_by TEXT,
+        accepted_at DATETIME,
+        started_at DATETIME,
+        deleted_at DATETIME
+      );
+      INSERT INTO orders
+        SELECT id, customer_id, service_id, assigned_employee_id, vehicle_plate, vehicle_type,
+               status, location_address, location_lat, location_lng, scheduled_at, notes,
+               created_at, completed_at,
+               COALESCE(washer_payout, 0.0),
+               COALESCE(platform_revenue, 0.0),
+               COALESCE(total_amount, 0.0),
+               payment_status, xendit_invoice_id, xendit_invoice_url,
+               before_photo_url, after_photo_url, cancellation_reason, cancelled_by,
+               accepted_at, started_at, deleted_at
+        FROM orders_legacy;
+      DROP TABLE orders_legacy;
+      COMMIT;
+      PRAGMA foreign_keys = ON;
+    `);
+    console.log("Migrated: orders table rebuilt without CHECK constraint.");
+  }
   if (!orderColumns.some(col => col.name === 'washer_payout')) {
     db.exec(`ALTER TABLE orders ADD COLUMN washer_payout REAL DEFAULT 0.0`);
     console.log("Migrated: added washer_payout column to orders.");

@@ -271,7 +271,12 @@ export const assignOrderAdmin = (req: AuthRequest, res: Response): any => {
       `).run(crypto.randomUUID(), id, adminId, auditNote);
         });
 
-        tx();
+        try {
+            tx();
+        } catch (txErr: any) {
+            console.error('assignOrderAdmin tx failed:', txErr.message);
+            throw txErr;
+        }
         notify({
             userId: data.employee_id,
             type: 'order_assigned',
@@ -289,8 +294,9 @@ export const assignOrderAdmin = (req: AuthRequest, res: Response): any => {
         res.status(200).json({ success: true, message: 'Order assigned successfully', data: updatedOrder });
     } catch (error: any) {
         if (error instanceof z.ZodError) {
-            return res.status(400).json({ success: false, message: 'Validation error', data: (error as any).errors });
+            return res.status(400).json({ success: false, message: 'Validation error', data: (error as any).issues ?? (error as any).errors });
         }
+        console.error('assignOrderAdmin error:', error?.message ?? error);
         res.status(500).json({ success: false, message: 'Internal server error', data: null });
     }
 };

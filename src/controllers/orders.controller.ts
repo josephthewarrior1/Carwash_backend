@@ -3,6 +3,7 @@ import db from '../db';
 import crypto from 'crypto';
 import { z } from 'zod';
 import { AuthRequest } from '../middleware/auth';
+import { syncPaymentStatus } from '../utils/xendit';
 
 const createOrderSchema = z.object({
     service_id: z.string().uuid(),
@@ -84,10 +85,15 @@ export const getMyOrders = (req: AuthRequest, res: Response): any => {
     }
 };
 
-export const getMyOrderDetails = (req: AuthRequest, res: Response): any => {
+export const getMyOrderDetails = async (req: AuthRequest, res: Response): Promise<any> => {
     try {
         const userId = req.user!.id;
         const { id } = req.params;
+
+        // Sync payment status with Xendit before reading, so the order row reflects
+        // the latest state (covers cases where the webhook isn't configured).
+        const orderId = Array.isArray(id) ? id[0] : id;
+        await syncPaymentStatus(orderId);
 
         const order = db.prepare(`
             SELECT

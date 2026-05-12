@@ -13,7 +13,7 @@ router.post('/', authMiddleware, upload.single('image'), (req: AuthRequest, res:
         return res.status(400).json({ success: false, message: 'No image file provided', data: null });
     }
 
-    const url = `${BASE_URL}/uploads/${req.file.filename}`;
+    const url = `${BASE_URL}/${req.file.filename}`;
     return res.status(201).json({ success: true, message: 'Image uploaded successfully', data: { url, filename: req.file.filename } });
 });
 

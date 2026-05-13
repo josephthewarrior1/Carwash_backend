@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import { z } from 'zod';
 import { AuthRequest } from '../middleware/auth';
 import { syncPaymentStatus } from '../utils/xendit';
-import { notify } from '../utils/notifications';
+import { notify, notifyAdmins } from '../utils/notifications';
 import { normaliseTimestamps, parseUtcDate } from '../utils/dates';
 
 const createOrderSchema = z.object({
@@ -493,6 +493,18 @@ export const updateOrderStatus = (req: AuthRequest, res: Response): any => {
             body: data.notes ?? data.reason ?? undefined,
             orderId: id as string,
         });
+        // Admin needs to follow up on no-show/failed jobs
+        if (data.status === 'no_show' || data.status === 'failed') {
+            notifyAdmins({
+                type: `order_${data.status}`,
+                title: data.status === 'no_show'
+                    ? 'Washer reported customer not home'
+                    : 'Washer reported a problem',
+                body: `Order #${(id as string).substring(0, 8).toUpperCase()}` +
+                    (data.reason != null ? ': ' + data.reason : ''),
+                orderId: id as string,
+            });
+        }
         const updatedOrder = db.prepare(`
             SELECT o.*, c.name as customer_name
             FROM orders o
@@ -580,6 +592,13 @@ export const cancelOrderCustomer = (req: AuthRequest, res: Response): any => {
                 orderId: id as string,
             });
         }
+        // Admin should know about cancellations that affect operations
+        notifyAdmins({
+            type: 'order_cancelled',
+            title: 'Customer cancelled an order',
+            body: `Order #${(id as string).substring(0, 8).toUpperCase()}${reason != null ? ': ' + reason : ''}`,
+            orderId: id as string,
+        });
 
         return res.status(200).json({ success: true, message: 'Order cancelled', data: null });
     } catch (error) {
@@ -639,6 +658,7 @@ export const declineOrderEmployee = (req: AuthRequest, res: Response): any => {
             return res.status(400).json({ success: false, message: `Cannot decline from ${order.status}`, data: null });
         }
 
+        const washer = db.prepare(`SELECT name FROM users WHERE id = ?`).get(userId) as any;
         const tx = db.transaction(() => {
             // Send back to pending so admin can reassign
             db.prepare(`UPDATE orders SET status = 'pending', assigned_employee_id = NULL WHERE id = ?`).run(id);
@@ -648,6 +668,16 @@ export const declineOrderEmployee = (req: AuthRequest, res: Response): any => {
             `).run(crypto.randomUUID(), id, userId, reason ? `Washer declined: ${reason}` : 'Washer declined');
         });
         tx();
+
+        // Admin needs to know so they can reassign someone else
+        notifyAdmins({
+            type: 'order_declined',
+            title: 'Washer declined a job',
+            body: `${washer?.name ?? 'A washer'} declined order #${(id as string).substring(0, 8).toUpperCase()}` +
+                (reason ? `: ${reason}` : '. Please reassign.'),
+            orderId: id as string,
+        });
+
         return res.status(200).json({ success: true, message: 'Order declined', data: null });
     } catch (error) {
         return res.status(500).json({ success: false, message: 'Internal server error', data: null });

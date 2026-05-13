@@ -28,3 +28,20 @@ export function notify(opts: {
         console.error('notify failed:', e);
     }
 }
+
+/** Notify every admin user. Useful for events that any admin should see. */
+export function notifyAdmins(opts: {
+    type: string;
+    title: string;
+    body?: string;
+    orderId?: string;
+}): void {
+    try {
+        const admins = db.prepare(`SELECT id FROM users WHERE role = 'admin'`).all() as { id: string }[];
+        for (const a of admins) {
+            notify({ ...opts, userId: a.id });
+        }
+    } catch (e) {
+        console.error('notifyAdmins failed:', e);
+    }
+}

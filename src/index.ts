@@ -26,6 +26,25 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+// Request logging: one line per request showing method, path, status, and
+// duration. Goes to stdout so pm2 captures it in ~/.pm2/logs/*-out.log.
+// /health is filtered out to avoid spamming the log with cron-style pings.
+app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.path === '/health') return next();
+    const start = Date.now();
+    res.on('finish', () => {
+        const ms = Date.now() - start;
+        const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
+                 ?? req.socket.remoteAddress ?? '-';
+        const u = (req as any).user?.id ? ` user=${(req as any).user.id.substring(0, 8)}` : '';
+        console.log(
+            `${new Date().toISOString()} ${req.method} ${req.originalUrl} ` +
+            `→ ${res.statusCode} ${ms}ms ip=${ip}${u}`
+        );
+    });
+    next();
+});
+
 // Normalise all known timestamp fields to ISO-8601 UTC ("…Z") on every JSON
 // response. SQLite emits "YYYY-MM-DD HH:MM:SS" without a tz designator, and
 // both Node's Date and Flutter's DateTime.parse interpret that as local time,
